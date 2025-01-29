@@ -82,7 +82,7 @@ selected_language = st.selectbox("Select Output Language", available_languages)
 
 # **Manual Temperature Selection**
 temperature = st.slider(
-    "Select Model Creativity (Temperature)", 
+    " 🌡️ Select Model Creativity (Temperature)", 
     min_value=0.0, max_value=1.0, 
     value=0.7, step=0.1
 )
