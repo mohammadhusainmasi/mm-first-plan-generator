@@ -59,7 +59,7 @@ You are a **senior {category} professional**, renowned for your expertise and ra
 
 # Streamlit UI
 st.title("🎯 Personal Plan Generator")
-st.subheader("Generate a step-by-step plan to master a skill using Generative AI")
+st.subheader(" 🚀 Generate a step-by-step plan to master a skill using Generative AI")
 
 # Category selection
 selected_category = st.selectbox(
