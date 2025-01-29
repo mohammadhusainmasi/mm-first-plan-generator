@@ -1,7 +1,0 @@
-langchain
-langchain-openai
-langchain-google-genai
-streamlit>=1.32.0
-load_dotenv
-langchain_community
-langchain_together

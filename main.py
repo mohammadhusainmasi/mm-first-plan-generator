@@ -1,7 +1,7 @@
 from langchain_google_genai import GoogleGenerativeAI
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
-from langchain.llms import Together
+from langchain_together import Together
 from dotenv import load_dotenv
 import os
 import time
