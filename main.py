@@ -63,7 +63,7 @@ plan_chain = plan_prompt | gemini_model
 
 # Streamlit UI
 st.title("Personal Plan Generator")
-st.subheader("Generate a step-by-step plan to master a skill using Generative AI")
+st.subheader(" 🚀 Generate a step-by-step plan to master a skill using Generative AI")
 
 # Category selection
 selected_category = st.selectbox(
