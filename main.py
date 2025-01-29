@@ -4,6 +4,9 @@ from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 import os
 import streamlit as st
+import time
+import tenacity
+import google.api_core.exceptions
 
 # Load environment variables
 load_dotenv()
@@ -15,28 +18,22 @@ if not GOOGLE_API_KEY:
     st.stop()
 
 # Categories for selection
-categories = [
-    "Programming 💻",
-    "Art 🎨",
-    "Music 🎶",
-    "Fitness 🏋️",
-    "Cooking 🍳",
-    "Languages 🌍",
-    "Learning ✍️",
-    "Business 📈"
-]
-
-# Default temperature settings for different languages
-language_temperatures = {
-    "English": 0.7,
-    "Spanish": 0.8,
-    "French": 0.75,
-    "German": 0.6,
-    "Hindi": 0.85,
-    "Chinese": 0.65,
-    "Japanese": 0.7,
-    "Gujarati":0.1, 
+categories = {
+    "Programming 💻": 0.1,
+    "Art 🎨": 0.2,
+    "Music 🎶": 0.3,
+    "Fitness 🏋️": 0.4,
+    "Cooking 🍳": 0.5,
+    "Languages 🌍": 0.6,
+    "Learning ✍️": 0.7,
+    "Business 📈": 0.8,
 }
+
+# Available languages
+available_languages = [
+    "English", "Spanish", "French", "German", 
+    "Hindi", "Chinese", "Japanese", "Gujarati"
+]
 
 # Personal Plan Template
 plan_template = """
@@ -61,66 +58,90 @@ You are a **senior {category} professional**, renowned for your expertise and ra
 """
 
 # Streamlit UI
-st.title("Personal Plan Generator")
+st.title("🎯 Personal Plan Generator")
 st.subheader("Generate a step-by-step plan to master a skill using Generative AI")
 
 # Category selection
 selected_category = st.selectbox(
     "Select a Category",
-    options=categories,
+    options=categories.keys(),
     help="Choose a category related to the skill you want to master."
 )
 
-# Input fields
+# Skill Input
 skill = st.text_input("Enter the skill you want to master", placeholder="E.g., Python programming")
+
+# Number of days
 days_available = st.number_input("Number of days available", min_value=1, max_value=365, value=10)
+
+# Daily time commitment
 daily_time = st.number_input("Daily time commitment (hours)", min_value=1, max_value=24, value=2)
 
-# Multi-language selection
-available_languages = list(language_temperatures.keys())
-selected_languages = st.multiselect("Select Output Languages", available_languages, default=["English"])
+# **Language Selection (Dropdown)**
+selected_language = st.selectbox("Select Output Language", available_languages)
 
-# Compute default temperature based on selected languages
-if selected_languages:
-    avg_temperature = sum(language_temperatures[lang] for lang in selected_languages) / len(selected_languages)
-else:
-    avg_temperature = 0.7  # Default to English
-
-# Temperature slider (allows manual override)
+# **Manual Temperature Selection**
 temperature = st.slider(
     "Select Model Creativity (Temperature)", 
     min_value=0.0, max_value=1.0, 
-    value=avg_temperature, step=0.1
+    value=0.7, step=0.1
 )
 
-# Initialize Gemini Model with dynamic temperature
-gemini_model = ChatGoogleGenerativeAI(model="gemini-pro", google_api_key=GOOGLE_API_KEY, temperature=temperature)
+# Initialize Gemini Model with manually set temperature
+gemini_model = ChatGoogleGenerativeAI(
+    model="gemini-pro",
+    google_api_key=GOOGLE_API_KEY,
+    temperature=temperature
+)
 
-# Create the chain
-def generate_plan_for_language(language):
+# Function to generate plan
+def generate_plan(language):
     plan_prompt = PromptTemplate(
         template=plan_template,
         input_variables=["skill", "category", "days_available", "daily_time", "language"]
     )
     plan_chain = plan_prompt | gemini_model
 
-    response = plan_chain.invoke({
-        "skill": skill,
-        "category": selected_category,
-        "days_available": days_available,
-        "daily_time": daily_time,
-        "language": language,
-    })
-    return response.content.strip() if hasattr(response, "content") else str(response).strip()
+    # Retry logic in case of API errors
+    for attempt in range(3):  # Retry up to 3 times
+        try:
+            response = plan_chain.invoke({
+                "skill": skill,
+                "category": selected_category,
+                "days_available": days_available,
+                "daily_time": daily_time,
+                "language": language,
+            })
+            return response.content.strip() if hasattr(response, "content") else str(response).strip()
+        
+        except google.api_core.exceptions.InternalServerError as e:
+            st.warning(f"⚠️ Server error: {e}. Retrying ({attempt+1}/3)...")
+            time.sleep(3)  # Wait for 3 seconds before retrying
+        except Exception as e:
+            st.error(f"❌ An unexpected error occurred: {e}")
+            return None  # Stop execution if another error occurs
+
+    st.error("❌ Failed to generate a plan after multiple attempts. Please try again later.")
+    return None
 
 # Generate plan button
 if st.button("Generate Plan"):
     if not skill:
         st.error("Please enter a skill to master.")
     else:
-        st.markdown("### Your Personalized Plans:")
-        for lang in selected_languages:
-            with st.spinner(f"📋 Generating plan in {lang}..."):
-                plan = generate_plan_for_language(lang)
-                st.markdown(f"## 🌍 Plan in {lang}:")
-                st.markdown(plan)
+        with st.spinner(f"📋 Generating plan in {selected_language}..."):
+            plan = generate_plan(selected_language)
+            st.markdown(f"## 🌍 Plan in {selected_language}:")
+            st.markdown(plan)
+
+test_model = ChatGoogleGenerativeAI(
+    model="gemini-pro",
+    google_api_key=GOOGLE_API_KEY
+)
+
+try:
+    response = test_model.invoke("Hello! Can you respond?")
+    print(response.content)
+except Exception as e:
+    print(f"API Error: {e}")
+
