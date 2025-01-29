@@ -3,7 +3,6 @@ from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 import os
-import time
 import streamlit as st
 
 # Load environment variables
@@ -27,6 +26,18 @@ categories = [
     "Business 📈"
 ]
 
+# Default temperature settings for different languages
+language_temperatures = {
+    "English": 0.7,
+    "Spanish": 0.8,
+    "French": 0.75,
+    "German": 0.6,
+    "Hindi": 0.85,
+    "Chinese": 0.65,
+    "Japanese": 0.7,
+    "Gujarati":0.1, 
+}
+
 # Personal Plan Template
 plan_template = """
 🎯 **Your Task**:  
@@ -46,24 +57,12 @@ You are a **senior {category} professional**, renowned for your expertise and ra
 ✅ Focus on practical learning with examples and exercises to solidify knowledge.  
 ✅ Use **emojis** and engaging language to make the plan approachable and fun.  
 
-📌 **Now, create a step-by-step plan** to help achieve mastery in **{skill}** within **{days_available}** days, dedicating **{daily_time}** hours daily. Ensure each day has unique tasks and maintains momentum toward the goal.
+📌 **Now, create a step-by-step plan** in **{language}** to help achieve mastery in **{skill}** within **{days_available}** days, dedicating **{daily_time}** hours daily.
 """
-
-# Initialize PromptTemplate
-plan_prompt = PromptTemplate(
-    template=plan_template,
-    input_variables=["skill", "category", "days_available", "daily_time", "language"]
-)
-
-# Initialize Gemini Model
-gemini_model = ChatGoogleGenerativeAI(model="gemini-pro", google_api_key=GOOGLE_API_KEY)
-
-# Create the chain
-plan_chain = plan_prompt | gemini_model
 
 # Streamlit UI
 st.title("Personal Plan Generator")
-st.subheader(" 🚀 Generate a step-by-step plan to master a skill using Generative AI")
+st.subheader("Generate a step-by-step plan to master a skill using Generative AI")
 
 # Category selection
 selected_category = st.selectbox(
@@ -76,23 +75,52 @@ selected_category = st.selectbox(
 skill = st.text_input("Enter the skill you want to master", placeholder="E.g., Python programming")
 days_available = st.number_input("Number of days available", min_value=1, max_value=365, value=10)
 daily_time = st.number_input("Daily time commitment (hours)", min_value=1, max_value=24, value=2)
-language = st.selectbox("Select language", ["English", "Spanish", "French", "German", "Hindi"])
+
+# Multi-language selection
+available_languages = list(language_temperatures.keys())
+selected_languages = st.multiselect("Select Output Languages", available_languages, default=["English"])
+
+# Compute default temperature based on selected languages
+if selected_languages:
+    avg_temperature = sum(language_temperatures[lang] for lang in selected_languages) / len(selected_languages)
+else:
+    avg_temperature = 0.7  # Default to English
+
+# Temperature slider (allows manual override)
+temperature = st.slider(
+    "Select Model Creativity (Temperature)", 
+    min_value=0.0, max_value=1.0, 
+    value=avg_temperature, step=0.1
+)
+
+# Initialize Gemini Model with dynamic temperature
+gemini_model = ChatGoogleGenerativeAI(model="gemini-pro", google_api_key=GOOGLE_API_KEY, temperature=temperature)
+
+# Create the chain
+def generate_plan_for_language(language):
+    plan_prompt = PromptTemplate(
+        template=plan_template,
+        input_variables=["skill", "category", "days_available", "daily_time", "language"]
+    )
+    plan_chain = plan_prompt | gemini_model
+
+    response = plan_chain.invoke({
+        "skill": skill,
+        "category": selected_category,
+        "days_available": days_available,
+        "daily_time": daily_time,
+        "language": language,
+    })
+    return response.content.strip() if hasattr(response, "content") else str(response).strip()
 
 # Generate plan button
 if st.button("Generate Plan"):
     if not skill:
         st.error("Please enter a skill to master.")
     else:
-        with st.spinner("📋 Generating your personalized plan..."):
-            raw_plan = plan_chain.invoke({
-                "skill": skill,
-                "category": selected_category,
-                "days_available": days_available,
-                "daily_time": daily_time,
-                "language": language,
-            })
-            plan = raw_plan.strip()
-
-        # Display the plan
-        st.markdown("### Your Personalized Plan:")
-        st.markdown(plan)
+        st.markdown("### Your Personalized Plans:")
+        for lang in selected_languages:
+            with st.spinner(f"📋 Generating plan in {lang}..."):
+                plan = generate_plan_for_language(lang)
+                st.markdown(f"## 🌍 Plan in {lang}:")
+                st.markdown(plan)
